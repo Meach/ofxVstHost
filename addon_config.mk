@@ -17,9 +17,9 @@
 meta:
 	ADDON_NAME = ofxVstHost
 	ADDON_DESCRIPTION = Enable to load VST plugins and use them as audio effects in openFrameworks.
-	ADDON_AUTHOR = @yournamehere
-    ADDON_TAGS = "addon" "VST" "audio" "DSP"
-	ADDON_URL = http://github.com/yournamehere/ofxAddonTemplate
+	ADDON_AUTHOR = @meach
+    	ADDON_TAGS = "addon" "VST" "sound" "DSP"
+	ADDON_URL = http://github.com/Meach/ofxVstHost
 
 common:
 	# dependencies with other addons, a list of them separated by spaces 
