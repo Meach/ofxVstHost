@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleExecutable</key>
+	<string>MVerb</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.martineastwood.MVerb</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>MVerb</string>
+	<key>CFBundlePackageType</key>
+	<string>BNDL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.01</string>
+	<key>CFBundleSignature</key>
+	<string>MVrb</string>
+	<key>CFBundleVersion</key>
+	<string>1.0</string>
+	<key>CSResourcesFileMapped</key>
+	<true/>
+	<key>SYConfig</key>
+	<dict>
+		<key>AutoConvertPresets</key>
+		<false/>
+		<key>DisableStereoSupport</key>
+		<false/>
+		<key>PresetIsFXB</key>
+		<false/>
+	</dict>
+</dict>
+</plist>
