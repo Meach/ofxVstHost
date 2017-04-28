@@ -10,18 +10,10 @@
 
 #include "ofMain.h"
 #include "ofxVstHostPluginLoader.h"
+#include "ofxVstEffect.h"
 
 
-//TODO:
-// - Close library function
-
-
-//TODO: try to use this to know which is which!
-struct effect_data {
-    AEffect* effect;
-    string label;
-};
-
+//TODO: use ofxVstEffect class!!
 
 class ofxVstHost
 {
@@ -32,12 +24,16 @@ public:
     
     // Main controls
     void setup(float sampleRate = 48000.f, int blockSize = 512);
-    bool load(string path, string nameInfo = "");
+    int load(string path, string label = "");
     void closeEffect(int index);
     void closePlugin(int index);
+    void closeAllEffects(void);
+    void closeAllPlugins(void);
+    void closeAll(void);
     
     void process(int indexEffect, ofSoundBuffer &buffer);
     
+    // Plugins info
     int getNumPlugins(void) const;
     int getNumEffects(void) const;
     float getSampleRate(void) const;
@@ -51,7 +47,8 @@ public:
     int getNumPrograms(int indexEffect) const;
     string getVendorString(int indexEffect) const;
     string getProductString(int indexEffect) const;
-    string getEffectName(int indexEffect) const;
+    string getEffectLabel(int indexEffect) const;
+    
     
     // Effect parameters
     string listParameterValues(int indexEffect);
@@ -62,18 +59,16 @@ public:
     
     
 private:
+    
     // Module is where to load the library
-    vector<PluginLoader> _plugins;
+    vector<ofxVstHostPluginLoader> _plugins;
     // Effect is one instance of this loaded library
-    vector<AEffect* > _effects;
-    // Each effect can be given a name to know which effect is which
-    vector<string> _names;
+    vector<ofxVstEffect> _effects;
     
-    
-    //--------------------------------------------------------------
     VstInt32 _blockSize;
     float _sampleRate;
     VstInt32 _numProcessCycles;
+
     
     // Out audio array used to process the audio
     float** _audio;

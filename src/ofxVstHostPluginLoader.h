@@ -22,98 +22,24 @@
 typedef AEffect* (*PluginEntryProc) (audioMasterCallback audioMaster);
 
 
-struct PluginLoader
+class ofxVstHostPluginLoader
 {
+public:
+    ofxVstHostPluginLoader();
+    ~ofxVstHostPluginLoader();    
+
+    bool loadLibrary(const char* fileName);
+    void closeLibrary(void);
+    PluginEntryProc getMainEntry(void);
+    
+    string getPath() const;
+    
+private:
     // Pointer to our library
-    void* module;
+    void* _module;
+    
+    PluginEntryProc _mainProc;
     
     // Path to this library not to load it twice
-    string path;
-    
-    
-    //--------------------------------------------------------------
-    PluginLoader ()
-    : module (0)
-    {}
-    
-    //--------------------------------------------------------------
-    ~PluginLoader ()
-    {
-        closeLibrary();
-    }
-    
-    //--------------------------------------------------------------
-    bool loadLibrary (const char* fileName)
-    {
-        // Save path
-        path = fileName;
-        
-#if _WIN32
-        module = LoadLibrary (fileName);
-        
-#elif TARGET_API_MAC_CARBON
-        CFStringRef fileNameString = CFStringCreateWithCString (NULL, fileName, kCFStringEncodingUTF8);
-        if (fileNameString == 0)
-            return false;
-        CFURLRef url = CFURLCreateWithFileSystemPath (NULL, fileNameString, kCFURLPOSIXPathStyle, false);
-        CFRelease (fileNameString);
-        if (url == 0)
-            return false;
-        module = CFBundleCreate (NULL, url);
-        CFRelease (url);
-        if (module && CFBundleLoadExecutable ((CFBundleRef)module) == false)
-            return false;
-        
-#elif __linux__
-        module = dlopen (fileName, RTLD_LAZY);
-        if (!module) {
-            fprintf (stderr, "%s\n", dlerror());
-            return false;
-        }
-#endif
-        return module != 0;
-    }
-    
-    //--------------------------------------------------------------
-    void closeLibrary(void) {
-        if (module)
-        {
-#if _WIN32
-            FreeLibrary ((HMODULE)module);
-            
-#elif TARGET_API_MAC_CARBON
-            CFBundleUnloadExecutable ((CFBundleRef)module);
-            CFRelease ((CFBundleRef)module);
-            
-#elif __linux__
-            dlclose(module);
-#endif
-            
-            module = nullptr;
-            path = "";
-        }
-    }
-    
-    
-    //--------------------------------------------------------------
-    PluginEntryProc getMainEntry ()
-    {
-        PluginEntryProc mainProc = 0;
-#if _WIN32
-        mainProc = (PluginEntryProc)GetProcAddress ((HMODULE)module, "VSTPluginMain");
-        if (!mainProc)
-            mainProc = (PluginEntryProc)GetProcAddress ((HMODULE)module, "main");
-        
-#elif TARGET_API_MAC_CARBON
-        mainProc = (PluginEntryProc)CFBundleGetFunctionPointerForName ((CFBundleRef)module, CFSTR("VSTPluginMain"));
-        if (!mainProc)
-            mainProc = (PluginEntryProc)CFBundleGetFunctionPointerForName ((CFBundleRef)module, CFSTR("main_macho"));
-        
-#elif __linux__
-        mainProc = (PluginEntryProc)dlsym(module, "VSTPluginMain");
-        if (!mainProc)
-            mainProc = (PluginEntryProc)dlsym(module, "main");
-#endif
-        return mainProc;
-    }
+    string _path;
 };

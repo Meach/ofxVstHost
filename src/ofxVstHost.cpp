@@ -13,7 +13,7 @@ ofxVstHost::ofxVstHost()
 {
     _plugins.clear();
     _effects.clear();
-    _names.clear();
+    //_names.clear();
     
     _blockSize = 512;
     _sampleRate = 44100.f;
@@ -24,21 +24,8 @@ ofxVstHost::ofxVstHost()
 //--------------------------------------------------------------
 ofxVstHost::~ofxVstHost()
 {
-    // Close all effects
-    for(int i = 0; i < _effects.size(); i++) {
-        closeEffect(i);
-    }
-    
-    // Close all plugins
-    for(int i = 0; i < _plugins.size(); i++) {
-        closePlugin(i);
-    }
-    
-    // Free our audio variables
-    delete [] _audio;
-    
-    _rBuffer.clear();
-    _lBuffer.clear();
+    //ofLogNotice("ofxVstHost") << "CLOSING";
+    //closeAll();
 }
 
 
@@ -63,22 +50,23 @@ void ofxVstHost::setup(float sampleRate, int blockSize)
 }
 
 
+// Load the VST effect and return the index in our vector if it's a success. -1 if not
 //--------------------------------------------------------------
-bool ofxVstHost::load(string path, string nameInfo)
+int ofxVstHost::load(string path, string label)
 {
     ofLogVerbose("ofxVstHost") << "load(" << path << ")";
     
     if (!checkPlatform ())
     {
         ofLogVerbose("ofxVstHost") << "Platform verification failed! Please check your Compiler Settings!";
-        return false;
+        return -1;
     }
     
     // Check that this module has not been already loaded
     int indexExisting = -1;
     for(int i = 0; i < _plugins.size(); i++) {
         // If we find the same name in our vector means we already loaded this library
-        if(_plugins[i].path == path) {
+        if(_plugins[i].getPath() == path) {
             indexExisting = i;
             ofLogVerbose("ofxVstHost") << "Library " << path << " already exist at index " << i << ". Not loading it again.";
         }
@@ -87,18 +75,18 @@ bool ofxVstHost::load(string path, string nameInfo)
     
     // Load new library if it is not in our list already
     if(indexExisting == -1){
-        PluginLoader loader;
-        if (!loader.loadLibrary (path.c_str()))
-        {
-            ofLogError("ofxVstHost") << "Failed to load VST Plugin library!";
-            return false;
-        }
-        
-        // Add our plugin loader to our vector
-        _plugins.push_back(loader);
+        // Make room in our vector for a new plugin
+        _plugins.resize(_plugins.size() + 1);
         
         // Overwrite index as it will be used below to access proper plugin
         indexExisting = _plugins.size() - 1;
+        
+        // Load the plugin
+        if (!_plugins[indexExisting].loadLibrary (path.c_str()))
+        {
+            ofLogError("ofxVstHost") << "Failed to load VST Plugin library!";
+            return -1;
+        }
     }
     
     
@@ -106,55 +94,64 @@ bool ofxVstHost::load(string path, string nameInfo)
     PluginEntryProc mainEntry = _plugins[indexExisting].getMainEntry ();
     if (!mainEntry)
     {
-        ofLogError("ofxVstHost") << "VST Plugin main entry not found!";
-        return false;
+        ofLogError("ofxVstHost") << "VST Plugin main entry not found for " << label;
+        return -1;
     }
-
+    
     
     // Create the effect from this main entry
-    AEffect* effect = mainEntry (HostCallback);
+    ofxVstEffect effect;
+    effect.aeffect = mainEntry (HostCallback);
     
-    if (!effect)
+    if (!effect.aeffect)
     {
         ofLogError("ofxVstHost") << "Failed to create effect instance!";
-        return false;
+        return -1;
     }
+    
+    effect.label = label;
     
     // Add this effect to our vector
     _effects.push_back(effect);
-    _names.push_back(nameInfo);
     
     // Get index of the effect in our vector
     int indexEffect = _effects.size() - 1;
     
     // Initialize the effect
-    dispatcher(_effects[indexEffect], effOpen);
-    dispatcher(_effects[indexEffect], effSetSampleRate, 0, 0, 0, getSampleRate());
-    dispatcher(_effects[indexEffect], effSetBlockSize, 0, getBlockSize());
-    dispatcher(_effects[indexEffect], effSetProcessPrecision, 0, kVstProcessPrecision32);
-    dispatcher(_effects[indexEffect], effMainsChanged, 0, 1);
-    dispatcher(_effects[indexEffect], effStartProcess);
+    dispatcher(_effects[indexEffect].aeffect, effOpen);
+    dispatcher(_effects[indexEffect].aeffect, effSetSampleRate, 0, 0, 0, getSampleRate());
+    dispatcher(_effects[indexEffect].aeffect, effSetBlockSize, 0, getBlockSize());
+    dispatcher(_effects[indexEffect].aeffect, effSetProcessPrecision, 0, kVstProcessPrecision32);
+    dispatcher(_effects[indexEffect].aeffect, effMainsChanged, 0, 1);
+    dispatcher(_effects[indexEffect].aeffect, effStartProcess);
+    
+    
+    ofLogVerbose("ofxVstHost") << "Created effect successfully with label " << effect.label << ", at index " << indexEffect;
+    
+    return indexEffect;
 }
 
 
 //--------------------------------------------------------------
 void ofxVstHost::closeEffect(int index)
 {
+    //ofLogVerbose("ofxVstHost") << "closeEffect(" <<  index << ")";
+    
     // Make sure index does not go out of bound
     if(index < _effects.size()) {
         // Close effect
-        dispatcher(_effects[index], effStopProcess);
-        dispatcher(_effects[index], effMainsChanged, 0, 0);
-        dispatcher(_effects[index], effClose);
+        dispatcher(_effects[index].aeffect, effStopProcess);
+        dispatcher(_effects[index].aeffect, effMainsChanged, 0, 0);
+        dispatcher(_effects[index].aeffect, effClose);
         
         // Remove this effect from the vector
         _effects.erase(_effects.begin() + index);
-        _names.erase(_names.begin() + index);
     }
     else {
         ofLogError("ofxVstHost") << "closeEffect(...), index out of bound. Expected " << _effects.size() - 1 << " max, got " << index;
     }
 }
+
 
 //TODO: Make sure the plugin is not used in other currently open effects
 //--------------------------------------------------------------
@@ -175,6 +172,43 @@ void ofxVstHost::closePlugin(int index)
 
 
 //--------------------------------------------------------------
+void ofxVstHost::closeAllEffects(void)
+{
+    if(_effects.size() > 0) {
+        do{
+            closeEffect(0);
+        }while(_effects.size() > 0);
+    }
+}
+
+
+//--------------------------------------------------------------
+void ofxVstHost::closeAllPlugins(void)
+{
+    if(_plugins.size() > 0) {
+        do{
+            closePlugin(0);
+        }while(_plugins.size() > 0);
+    }
+}
+
+//--------------------------------------------------------------
+void ofxVstHost::closeAll(void)
+{
+    // Close all effects
+    closeAllEffects();
+    
+    // Close all plugins
+    closeAllPlugins();
+    
+    // Free our audio variables
+    delete [] _audio;
+    
+    _rBuffer.clear();
+    _lBuffer.clear();
+}
+
+//--------------------------------------------------------------
 void ofxVstHost::process(int indexEffect, ofSoundBuffer &buffer)
 {
     // Make sure indexEffect does not go out of bound
@@ -188,7 +222,7 @@ void ofxVstHost::process(int indexEffect, ofSoundBuffer &buffer)
         _audio[1] = &_lBuffer[0];
         
         // Process the effect
-        _effects[indexEffect]->processReplacing(_effects[indexEffect], _audio, _audio, buffer.getNumFrames());
+        _effects[indexEffect].aeffect->processReplacing(_effects[indexEffect].aeffect, _audio, _audio, buffer.getNumFrames());
         
         // Copy back the different channels to our output buffer
         buffer.setChannel(_rBuffer, 0);
@@ -230,7 +264,7 @@ VstInt32 ofxVstHost::getBlockSize() const
 int ofxVstHost::getNumInputs(int indexEffect) const {
     // Make sure indexEffect does not go out of bound
     if(indexEffect < _effects.size()) {
-        return _effects[indexEffect]->numInputs;
+        return _effects[indexEffect].aeffect->numInputs;
     }
     else {
         ofLogError("ofxVstHost") << "getNumInputs(...), indexEffect out of bound. Expected " << _effects.size() - 1 << " max, got " << indexEffect;
@@ -241,7 +275,7 @@ int ofxVstHost::getNumInputs(int indexEffect) const {
 int ofxVstHost::getNumOutputs(int indexEffect) const {
     // Make sure indexEffect does not go out of bound
     if(indexEffect < _effects.size()) {
-        return _effects[indexEffect]->numOutputs;
+        return _effects[indexEffect].aeffect->numOutputs;
     }
     else {
         ofLogError("ofxVstHost") << "getNumOutputs(...), indexEffect out of bound. Expected " << _effects.size() - 1 << " max, got " << indexEffect;
@@ -253,7 +287,7 @@ int ofxVstHost::getNumOutputs(int indexEffect) const {
 int ofxVstHost::getNumParameters(int indexEffect) const {
     // Make sure indexEffect does not go out of bound
     if(indexEffect < _effects.size()) {
-        return _effects[indexEffect]->numParams;
+        return _effects[indexEffect].aeffect->numParams;
     }
     else {
         ofLogError("ofxVstHost") << "getNumParameters(...), indexEffect out of bound. Expected " << _effects.size() - 1 << " max, got " << indexEffect;
@@ -265,7 +299,7 @@ int ofxVstHost::getNumParameters(int indexEffect) const {
 int ofxVstHost::getNumPrograms(int indexEffect) const {
     // Make sure indexEffect does not go out of bound
     if(indexEffect < _effects.size()) {
-        return _effects[indexEffect]->numPrograms;
+        return _effects[indexEffect].aeffect->numPrograms;
     }
     else {
         ofLogError("ofxVstHost") << "getNumPrograms(...), indexEffect out of bound. Expected " << _effects.size() - 1 << " max, got " << indexEffect;
@@ -280,7 +314,7 @@ string ofxVstHost::getVendorString(int indexEffect) const
     
     // Make sure indexEffect does not go out of bound
     if(indexEffect < _effects.size()) {
-        dispatcher (_effects[indexEffect], effGetVendorString, 0, 0, vendorString);
+        dispatcher (_effects[indexEffect].aeffect, effGetVendorString, 0, 0, vendorString);
     }
     else {
         ofLogError("ofxVstHost") << "getVendorString(...), indexEffect out of bound. Expected " << _effects.size() - 1 << " max, got " << indexEffect;
@@ -296,7 +330,7 @@ string ofxVstHost::getProductString(int indexEffect) const
     
     // Make sure indexEffect does not go out of bound
     if(indexEffect < _effects.size()) {
-        dispatcher (_effects[indexEffect], effGetProductString, 0, 0, productString);
+        dispatcher (_effects[indexEffect].aeffect, effGetProductString, 0, 0, productString);
     }
     else {
         ofLogError("ofxVstHost") << "getProductString(...), indexEffect out of bound. Expected " << _effects.size() - 1 << " max, got " << indexEffect;
@@ -306,15 +340,17 @@ string ofxVstHost::getProductString(int indexEffect) const
 }
 
 //--------------------------------------------------------------
-string ofxVstHost::getEffectName(int indexEffect) const
+string ofxVstHost::getEffectLabel(int indexEffect) const
 {
     // Make sure indexEffect does not go out of bound
-    if(indexEffect < _names.size()) {
-        return _names[indexEffect];
+    if(indexEffect < _effects.size()) {
+        return _effects[indexEffect].label;
     }
     else {
-        ofLogError("ofxVstHost") << "getEffectName(...), indexEffect out of bound. Expected " << _names.size() - 1 << " max, got " << indexEffect;
+        ofLogError("ofxVstHost") << "getEffectName(...), indexEffect out of bound. Expected " << _effects.size() - 1 << " max, got " << indexEffect;
     }
+    
+    return "";
 }
 
 //--------------------------------------------------------------
@@ -325,16 +361,16 @@ string ofxVstHost::listParameterValues(int indexEffect)
     // Make sure indexEffect does not go out of bound
     if(indexEffect < _effects.size()) {
         // Iterate parameters...
-        for (VstInt32 paramIndex = 0; paramIndex < _effects[indexEffect]->numParams; paramIndex++)
+        for (VstInt32 paramIndex = 0; paramIndex < _effects[indexEffect].aeffect->numParams; paramIndex++)
         {
             char paramName[256] = {0};
             char paramLabel[256] = {0};
             char paramDisplay[256] = {0};
             
-            dispatcher (_effects[indexEffect], effGetParamName, paramIndex, 0, paramName, 0);
-            dispatcher (_effects[indexEffect], effGetParamLabel, paramIndex, 0, paramLabel, 0);
-            dispatcher (_effects[indexEffect], effGetParamDisplay, paramIndex, 0, paramDisplay, 0);
-            float value = _effects[indexEffect]->getParameter (_effects[indexEffect], paramIndex);
+            dispatcher (_effects[indexEffect].aeffect, effGetParamName, paramIndex, 0, paramName, 0);
+            dispatcher (_effects[indexEffect].aeffect, effGetParamLabel, paramIndex, 0, paramLabel, 0);
+            dispatcher (_effects[indexEffect].aeffect, effGetParamDisplay, paramIndex, 0, paramDisplay, 0);
+            float value = _effects[indexEffect].aeffect->getParameter (_effects[indexEffect].aeffect, paramIndex);
             
             //ofLogVerbose("ofxVSTHost") << "Param " << paramIndex << ": " << paramName << " [" << paramDisplay << " " << paramLabel << "] (normalized = " << value << ")";
             str += "Param " + ofToString(paramIndex) + ": " + ofToString(paramName) + " [" + ofToString(paramDisplay) + " " + ofToString(paramLabel) + "]  (normalized = " + ofToString(value) + ")\n";
@@ -353,7 +389,7 @@ float ofxVstHost::getParameterValue(int indexEffect, int indexParam) const {
     
     // Make sure indexEffect does not go out of bound
     if(indexEffect < _effects.size()) {
-        return _effects[indexEffect]->getParameter (_effects[indexEffect], indexParam);
+        return _effects[indexEffect].aeffect->getParameter (_effects[indexEffect].aeffect, indexParam);
     }
     else {
         ofLogError("ofxVstHost") << "getParameterValue(...), indexEffect out of bound. Expected " << _effects.size() - 1 << " max, got " << indexEffect;
@@ -366,7 +402,7 @@ void ofxVstHost::setParameterValue(int indexEffect, int indexParam, float value)
 {
     // Make sure indexEffect does not go out of bound
     if(indexEffect < _effects.size()) {
-        _effects[indexEffect]->setParameter (_effects[indexEffect], indexParam, value);
+        _effects[indexEffect].aeffect->setParameter (_effects[indexEffect].aeffect, indexParam, value);
     }
     else {
         ofLogError("ofxVstHost") << "setParameterValue(...), indexEffect out of bound. Expected " << _effects.size() - 1 << " max, got " << indexEffect;
@@ -380,7 +416,7 @@ string ofxVstHost::getParameterName(int indexEffect, int indexParam) const
     
     // Make sure indexEffect does not go out of bound
     if(indexEffect < _effects.size()) {
-        dispatcher (_effects[indexEffect], effGetParamName, indexParam, 0, paramName);
+        dispatcher (_effects[indexEffect].aeffect, effGetParamName, indexParam, 0, paramName);
     }
     else {
         ofLogError("ofxVstHost") << "getParameterName(...), indexEffect out of bound. Expected " << _effects.size() - 1 << " max, got " << indexEffect;
@@ -396,7 +432,7 @@ string ofxVstHost::getParameterLabel(int indexEffect, int indexParam) const
     
     // Make sure indexEffect does not go out of bound
     if(indexEffect < _effects.size()) {
-        dispatcher (_effects[indexEffect], effGetParamLabel, indexParam, 0, paramLabel);
+        dispatcher (_effects[indexEffect].aeffect, effGetParamLabel, indexParam, 0, paramLabel);
     }
     else {
         ofLogError("ofxVstHost") << "getParameterLabel(...), indexEffect out of bound. Expected " << _effects.size() - 1 << " max, got " << indexEffect;
