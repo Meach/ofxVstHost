@@ -47,7 +47,7 @@ bool ofxVstHostPluginLoader::loadLibrary (const char* fileName)
     
 #elif __linux__
     _module = dlopen (fileName, RTLD_LAZY);
-    if (!module) {
+    if (!_module) {
         fprintf (stderr, "%s\n", dlerror());
         return false;
     }
