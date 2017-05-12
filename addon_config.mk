@@ -29,7 +29,7 @@ common:
 	# include search paths, this will be usually parsed from the file system
 	# but if the addon or addon libraries need special search paths they can be
 	# specified here separated by spaces or one per line using +=
-        ADDON_INCLUDES = libs/VST2_SDK/pluginterfaces/vst2.x
+        ADDON_INCLUDES += libs/VST2_SDK/pluginterfaces/vst2.x
 	
 	# any special flag that should be passed to the compiler when using this
 	# addon
