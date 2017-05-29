@@ -30,7 +30,7 @@ bool ofxVstHostPluginLoader::loadLibrary (const char* fileName)
     _path = fileName;
     
 #if _WIN32
-    _module = LoadLibrary (fileName);
+    _module = LoadLibraryA (fileName);
     
 #elif TARGET_API_MAC_CARBON
     CFStringRef fileNameString = CFStringCreateWithCString (NULL, fileName, kCFStringEncodingUTF8);
